@@ -1,16 +1,22 @@
 <?php
 
+
 namespace App\Http\Controllers;
 
+use App\Charts\EmployeesChart;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
+
+
 class HomeController extends Controller
 {
-    function index()
+    function index(EmployeesChart $chart)
     {
         $pageTitle = 'Home';
-
-        return view('home', ['pageTitle' => $pageTitle]);
+        return view('home',[
+               'pageTitle' => $pageTitle, 
+               'chart' => $chart->build()
+        ]);
+   
     }
 
 }

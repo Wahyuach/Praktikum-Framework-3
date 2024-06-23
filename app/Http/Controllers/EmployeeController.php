@@ -2,14 +2,19 @@
 
 namespace App\Http\Controllers;
 
+
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
+use Illuminate\Support\Facades\File;
 use App\Models\Employee;
 use App\Models\Position;
-
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use RealRashid\SweetAlert\Facades\Alert;
+use Maatwebsite\Excel\Facades\Excel;
+use App\Exports\EmployeesExport;
+use PDF;
 
 class EmployeeController extends Controller
 {
@@ -19,30 +24,15 @@ class EmployeeController extends Controller
     public function index()
     {
         $pageTitle = 'Employee List';
+        confirmDelete();
+        $positions = Position::all();
+        confirmDelete();
 
-        $employees = Employee::all();
+        return view('employee.index',[
+            'pageTitle' => $pageTitle, 
+            'positions' => $positions
+     ]);
 
-        // $employees = DB::table('employees')
-        // ->select([
-        // 'employees.*',
-        // DB::raw('employees.id AS employee_id'), 'positions.name AS position_name',
-        // ])
-        // ->leftJoin('positions', function ($join) {
-        // $join->on('employees.position_id', '=', 'positions.id');
-        // })->get();
-
-
-        // // RAW SQL QUERY
-        // $employees = DB::select('
-        //     select *, employees.id as employee_id, positions.name as position_name
-        //     from employees
-        //     left join positions on employees.position_id = positions.id
-        // ');
-
-        return view('employee.index', [
-            'pageTitle' => $pageTitle,
-            'employees' => $employees
-        ]);
     }
 
 
@@ -112,6 +102,7 @@ class EmployeeController extends Controller
 
 
         $employee->save();
+        Alert::success('Added Successfully', 'Employee Data Added Successfully.');
 
         return redirect()->route('employees.index');
     }
@@ -152,60 +143,53 @@ class EmployeeController extends Controller
      */
     public function update(Request $request, string $id)
     {
-        $messages = [
-            'required' => ':Attribute harus diisi.',
-            'email' => 'Isi :attribute dengan format yang benar',
-            'numeric' => 'Isi :attribute dengan angka'
-        ];
+        // QUERY BUILDER METHODE
+        // DB::table('employees')->where('id', $id)->update([
+        //     'firstname' => $request->firstName,
+        //     'lastname' => $request->lastName,
+        //     'email' => $request->email,
+        //     'age' => $request->age,
+        //     'position_id' => $request->position,
+        // ]);
 
-        $validator = Validator::make($request->all(), [
-            'firstName' => 'required',
-            'lastName' => 'required',
-            'email' => 'required|email',
-            'age' => 'required|numeric',
-        ], $messages);
-
-        if ($validator->fails()) {
-            return redirect()->back()->withErrors($validator)->withInput();
-        }
         // Get File
         $file = $request->file('cv');
+
         if ($file != null) {
             $originalFilename = $file->getClientOriginalName();
             $encryptedFilename = $file->hashName();
 
-            // update File
-            $file->update('public/files');
-
-            // ELOQUENT
-            $employee = Employee::find($id);
-            $employee->firstname = $request->firstName;
-            $employee->lastname = $request->lastName;
-            $employee->email = $request->email;
-            $employee->age = $request->age;
-            $employee->position_id = $request->position;
-
-            if ($file != null) {
-                $employee->original_filename = $originalFilename;
-                $employee->encrypted_filename = $encryptedFilename;
-            }
-
-            $employee->save();
-
-
-            return redirect()->route('employees.index');
+            // Store File
+            $file->store('public/files');
         }
+
+
+        // ELOQUENT
+        $employee = Employee::find($id);
+        $employee->firstname = $request->firstName;
+        $employee->lastname = $request->lastName;
+        $employee->email = $request->email;
+        $employee->age = $request->age;
+        $employee->position_id = $request->position;
+        if ($file != null) {
+            $employee->original_filename = $originalFilename;
+            $employee->encrypted_filename = $encryptedFilename;
+        }
+        $employee->save();
+
+        Alert::success('Changed Successfully', 'Employee Data Changed Successfully.');
+        return redirect()->route('employees.index');
     }
+
+
+
 
     /**
      * Remove the specified resource from storage.
      */
     public function destroy(string $id)
     {
-        //        // QUERY BUILDER
-        // DB::table('employees')
-        // ->where('id', $id)
-        // ->delete();
+
 
 
         $employee = Employee::find($id);
@@ -219,7 +203,9 @@ class EmployeeController extends Controller
             }
         }
         $employee->delete();
-        
+
+        Alert::success('Deleted Successfully', 'Employee Data Deleted Successfully.');
+
         return redirect()->route('employees.index');
     }
 
@@ -233,5 +219,30 @@ class EmployeeController extends Controller
         if (Storage::exists($encryptedFilename)) {
             return Storage::download($encryptedFilename, $downloadFilename);
         }
+    }
+
+    public function getData(Request $request)
+    {
+        $employees = Employee::with('position');
+
+        if ($request->ajax()) {
+            return datatables()->of($employees)
+                ->addIndexColumn()
+                ->addColumn('actions', function ($employee) {
+                    return view('employee.action', compact('employee'));
+                })
+                ->toJson();
+        }
+    }
+
+
+
+    public function exportPdf()
+    {
+        $employees = Employee::all();
+
+        $pdf = PDF::loadView('employee.export_pdf', compact('employees'));
+
+        return $pdf->download('employees.pdf');
     }
 }

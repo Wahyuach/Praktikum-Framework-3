@@ -4,6 +4,7 @@ namespace Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Database\Factories\PositionFactory;
+use App\Models\Position;
 
 /**
  * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\Employee>
@@ -22,7 +23,7 @@ class EmployeeFactory extends Factory
             'lastname' => fake()->lastName(),
             'email' => fake()->email(),
             'age' => fake()->numberBetween(25, 50),
-            'position_id' => PositionFactory::factory()
+            'position_id' => Position::factory()
         ];
     
     }
